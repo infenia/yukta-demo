@@ -13,10 +13,14 @@ COPY --from=yukta /app/yukta /app/yukta
 # which the bundled /api/templates do not carry.
 RUN curl -fsSL "https://codeload.github.com/infenia/yukta/tar.gz/refs/tags/v${YUKTA_VERSION}" \
       | tar -xz -C /opt --strip-components=1 --wildcards '*/examples' \
-    && rm /etc/nginx/conf.d/default.conf
+    && rm /etc/nginx/conf.d/default.conf \
+    && sed -i -e '/^user /d' -e 's|^pid .*|pid /tmp/nginx.pid;|' /etc/nginx/nginx.conf \
+    && chown -R nginx:nginx /etc/nginx/conf.d /var/cache/nginx
 COPY nginx.conf.template /etc/nginx/templates/yukta.conf.template
 COPY entrypoint.sh /entrypoint.sh
 
 ENV PORT=10000
+# Non-root throughout: hosts such as Render drop the capabilities needed to switch user later.
+USER nginx
 EXPOSE 10000
 ENTRYPOINT ["/entrypoint.sh"]

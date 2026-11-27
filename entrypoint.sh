@@ -14,19 +14,18 @@ export YUKTA_PLUGINS_ENABLED="${YUKTA_PLUGINS_ENABLED:-PROCESS_EXECUTOR,FILE_WRI
 export YUKTA_PROCESS_ALLOWED_COMMANDS="${YUKTA_PROCESS_ALLOWED_COMMANDS:-sh,echo,shuf}"
 
 # Every visitor shares the one OPERATOR key, so the per-key limit is off; nginx limits per client IP.
-setpriv --reuid=nginx --regid=nginx --init-groups /app/yukta -Dyukta.rate-limit-per-minute=0 &
+/app/yukta -Dyukta.rate-limit-per-minute=0 &
 yukta_pid=$!
 
 for _ in $(seq 120); do
   curl -fs -o /dev/null http://127.0.0.1:9858/actuator/health && break
-  kill -0 "$yukta_pid" 2>/dev/null || exit 1
+  kill -0 "$yukta_pid" 2>/dev/null || { echo "yukta exited before it was healthy" >&2; exit 1; }
   sleep 1
 done
 
 # run.sh applies each session (and its supervisor) and leaves a few runs in the history.
-# As the server user, so the files it writes under /tmp stay writable. A failing example must not
-# keep the demo down.
-YUKTA_URL=http://127.0.0.1:9858 YUKTA_API_KEY="$ADMIN_KEY" setpriv --reuid=nginx --regid=nginx --init-groups /opt/examples/run-all.sh 1 || echo "seed: some examples failed" >&2
+# A failing example must not keep the demo down.
+YUKTA_URL=http://127.0.0.1:9858 YUKTA_API_KEY="$ADMIN_KEY" /opt/examples/run-all.sh 1 || echo "seed: some examples failed" >&2
 # 09 is a walkthrough without run.sh: apply its (internal) session, then the supervisor that runs it.
 (cd /opt/examples/1-standalone/09-supervisor-workflow && source ../../lib/common.sh \
   && YUKTA_URL=http://127.0.0.1:9858 YUKTA_API_KEY="$ADMIN_KEY" \
